@@ -1,54 +1,116 @@
-/*
-Raylib example file.
-This is an example main file for a simple raylib project.
-Use this as a starting point or replace it with your code.
-
-by Jeffery Myers is marked with CC0 1.0. To view a copy of this license, visit https://creativecommons.org/publicdomain/zero/1.0/
-
-*/
-
 #include "raylib.h"
+#include "resource_dir.h" 
 
-#include "resource_dir.h"	// utility header for SearchAndSetResourceDir
+#define SCREEN_WIDTH 800
+#define SCREEN_HEIGHT 600
+#define GRID_SIZE 20
+#define GRID_WIDTH (SCREEN_WIDTH / GRID_SIZE)
+#define GRID_HEIGHT (SCREEN_HEIGHT / GRID_SIZE)
 
-int main ()
-{
-	// Tell the window to use vsync and work on high DPI displays
-	SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
+typedef struct {
+	int x, y;
+} Vector2Int;
 
-	// Create the window and OpenGL context
-	InitWindow(1280, 800, "Hello Raylib");
+typedef struct {
+	Vector2Int position;
+	Vector2Int direction;
+	int length;
+	Vector2Int body[GRID_WIDTH * GRID_HEIGHT];
+} Snake;
 
-	// Utility function from resource_dir.h to find the resources folder and set it as the current working directory so we can load from it
-	SearchAndSetResourceDir("resources");
+typedef struct {
+	Vector2Int position;
+} Food;
 
-	// Load a texture from the resources directory
-	Texture wabbit = LoadTexture("wabbit_alpha.png");
-	
-	// game loop
-	while (!WindowShouldClose())		// run the loop untill the user presses ESCAPE or presses the Close button on the window
-	{
-		// drawing
+void InitSnake(Snake *snake) {
+	snake->position = (Vector2Int){GRID_WIDTH / 2, GRID_HEIGHT / 2};
+	snake->direction = (Vector2Int){1, 0};
+	snake->length = 1;
+	snake->body[0] = snake->position;
+}
+
+void InitFood(Food *food) {
+	food->position = (Vector2Int){GetRandomValue(0, GRID_WIDTH - 1), GetRandomValue(0, GRID_HEIGHT - 1)};
+}
+
+void UpdateSnake(Snake *snake) {
+	for (int i = snake->length - 1; i > 0; i--) {
+		snake->body[i] = snake->body[i - 1];
+	}
+	snake->position.x += snake->direction.x;
+	snake->position.y += snake->direction.y;
+	snake->body[0] = snake->position;
+}
+
+bool CheckCollisionWithFood(Snake *snake, Food *food) {
+	return snake->position.x == food->position.x && snake->position.y == food->position.y;
+}
+
+bool CheckCollisionWithSelf(Snake *snake) {
+	for (int i = 1; i < snake->length; i++) {
+		if (snake->position.x == snake->body[i].x && snake->position.y == snake->body[i].y) {
+			return true;
+		}
+	}
+	return false;
+}
+
+bool CheckCollisionWithWalls(Snake *snake) {
+	return snake->position.x < 0 || snake->position.y < 0 || snake->position.x >= GRID_WIDTH || snake->position.y >= GRID_HEIGHT;
+}
+
+int main(void) {
+	InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Snake Game");
+	SetTargetFPS(10);
+
+	Snake snake;
+	Food food;
+
+	InitSnake(&snake);
+	InitFood(&food);
+
+	bool gameOver = false;
+
+	while (!WindowShouldClose()) {
+		if (!gameOver) {
+			// Handle input
+			if (IsKeyPressed(KEY_UP) && snake.direction.y == 0) snake.direction = (Vector2Int){0, -1};
+			if (IsKeyPressed(KEY_DOWN) && snake.direction.y == 0) snake.direction = (Vector2Int){0, 1};
+			if (IsKeyPressed(KEY_LEFT) && snake.direction.x == 0) snake.direction = (Vector2Int){-1, 0};
+			if (IsKeyPressed(KEY_RIGHT) && snake.direction.x == 0) snake.direction = (Vector2Int){1, 0};
+
+			// Update game state
+			UpdateSnake(&snake);
+
+			if (CheckCollisionWithFood(&snake, &food)) {
+				snake.length++;
+				InitFood(&food);
+			}
+
+			if (CheckCollisionWithSelf(&snake) || CheckCollisionWithWalls(&snake)) {
+				gameOver = true;
+			}
+		}
+
+		// Draw
 		BeginDrawing();
-
-		// Setup the back buffer for drawing (clear color and depth buffers)
 		ClearBackground(BLACK);
 
-		// draw some text using the default font
-		DrawText("Hello Raylib", 200,200,20,WHITE);
+		if (!gameOver) {
+			// Draw snake
+			for (int i = 0; i < snake.length; i++) {
+				DrawRectangle(snake.body[i].x * GRID_SIZE, snake.body[i].y * GRID_SIZE, GRID_SIZE, GRID_SIZE, GREEN);
+			}
 
-		// draw our texture to the screen
-		DrawTexture(wabbit, 400, 200, WHITE);
-		
-		// end the frame and get ready for the next one  (display frame, poll input, etc...)
+			// Draw food
+			DrawRectangle(food.position.x * GRID_SIZE, food.position.y * GRID_SIZE, GRID_SIZE, GRID_SIZE, RED);
+		} else {
+			DrawText("GAME OVER", SCREEN_WIDTH / 2 - MeasureText("GAME OVER", 40) / 2, SCREEN_HEIGHT / 2 - 20, 40, RED);
+		}
+
 		EndDrawing();
 	}
 
-	// cleanup
-	// unload our texture so it can be cleaned up
-	UnloadTexture(wabbit);
-
-	// destroy the window and cleanup the OpenGL context
 	CloseWindow();
 	return 0;
 }
